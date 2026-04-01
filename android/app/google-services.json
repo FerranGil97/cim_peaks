@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1028451473372",
+    "project_id": "cim-peaks",
+    "storage_bucket": "cim-peaks.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1028451473372:android:fddeb3515c543ea15a6119",
+        "android_client_info": {
+          "package_name": "com.tfg.cim_peaks"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB18jJNcaj3P8fzm49h-U_Iri6VK4TJRz8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
