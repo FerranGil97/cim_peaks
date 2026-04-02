@@ -3,6 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
 import 'firebase_options.dart';
 import 'viewmodels/auth_viewmodel.dart';
+import 'viewmodels/summit_viewmodel.dart';
 import 'views/auth/login_view.dart';
 import 'views/auth/register_view.dart';
 import 'views/map/map_view.dart';
@@ -23,6 +24,7 @@ class MyApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AuthViewModel()),
+        ChangeNotifierProvider(create: (_) => SummitViewModel()),
       ],
       child: MaterialApp(
         title: 'Cim Peaks',

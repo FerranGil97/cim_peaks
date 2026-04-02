@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../data/repositories/auth_repository.dart';
 import '../data/models/user_model.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 enum AuthStatus { initial, loading, authenticated, unauthenticated, error }
 
@@ -17,15 +18,27 @@ class AuthViewModel extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
 
   AuthViewModel() {
-    _authRepository.authStateChanges.listen((User? user) {
-      if (user == null) {
-        _status = AuthStatus.unauthenticated;
-      } else {
+  _authRepository.authStateChanges.listen((User? user) async {
+    if (user == null) {
+      _status = AuthStatus.unauthenticated;
+      _currentUser = null;
+    } else {
+      try {
+        final doc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
+        if (doc.exists) {
+          _currentUser = UserModel.fromFirestore(doc.data()!, user.uid);
+        }
+        _status = AuthStatus.authenticated;
+      } catch (e) {
         _status = AuthStatus.authenticated;
       }
-      notifyListeners();
-    });
-  }
+    }
+    notifyListeners();
+  });
+}
 
   Future<bool> register({
     required String email,
