@@ -21,24 +21,43 @@ class _MapViewState extends State<MapView> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      
       final authViewModel = context.read<AuthViewModel>();
       final summitViewModel = context.read<SummitViewModel>();
-    
-      // Escoltar canvis d'usuari
+
       authViewModel.addListener(() {
         if (authViewModel.currentUser != null) {
           summitViewModel.loadSummits(authViewModel.currentUser!.uid);
         }
       });
 
-      // Carregar immediatament si ja tenim usuari
       if (authViewModel.currentUser != null) {
         summitViewModel.loadSummits(authViewModel.currentUser!.uid);
       }
-      print('USER: ${authViewModel.currentUser?.uid}');
     });
-    
+  }
+
+  void _checkNotifications() {
+    final summitViewModel = context.read<SummitViewModel>();
+
+    if (summitViewModel.newBadgeMessage != null) {
+      final message = summitViewModel.newBadgeMessage!;
+      summitViewModel.clearNotifications();
+      Future.delayed(Duration.zero, () {
+        _showAchievementOverlay(message);
+      });
+    }
+  }
+
+  void _showAchievementOverlay(String message) {
+    final overlay = Overlay.of(context);
+    late OverlayEntry entry;
+    entry = OverlayEntry(
+      builder: (context) => _AchievementOverlay(
+        message: message,
+        onDismiss: () => entry.remove(),
+      ),
+    );
+    overlay.insert(entry);
   }
 
   Set<Marker> _buildMarkers(List<SummitModel> summits) {
@@ -85,7 +104,8 @@ class _MapViewState extends State<MapView> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(summit.name,
-                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                style: const TextStyle(
+                    fontSize: 24, fontWeight: FontWeight.bold)),
             const SizedBox(height: 4),
             Text('${summit.altitude}m · ${summit.province ?? ''}',
                 style: const TextStyle(color: Colors.grey)),
@@ -188,7 +208,7 @@ class _MapViewState extends State<MapView> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 8)],
+        boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 8)],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -200,7 +220,8 @@ class _MapViewState extends State<MapView> {
           Wrap(
             spacing: 8,
             children: [
-              _filterChip('Tots', summitViewModel.statusFilter == SummitFilter.all,
+              _filterChip('Tots',
+                  summitViewModel.statusFilter == SummitFilter.all,
                   () => summitViewModel.setStatusFilter(SummitFilter.all)),
               _filterChip('Assolits ✅',
                   summitViewModel.statusFilter == SummitFilter.achieved,
@@ -225,13 +246,17 @@ class _MapViewState extends State<MapView> {
                   () => summitViewModel.setAltitudeFilter(AltitudeFilter.all)),
               _filterChip('+3000m',
                   summitViewModel.altitudeFilter == AltitudeFilter.above3000,
-                  () => summitViewModel.setAltitudeFilter(AltitudeFilter.above3000)),
+                  () => summitViewModel
+                      .setAltitudeFilter(AltitudeFilter.above3000)),
               _filterChip('2000-3000m',
-                  summitViewModel.altitudeFilter == AltitudeFilter.between2000and3000,
-                  () => summitViewModel.setAltitudeFilter(AltitudeFilter.between2000and3000)),
+                  summitViewModel.altitudeFilter ==
+                      AltitudeFilter.between2000and3000,
+                  () => summitViewModel
+                      .setAltitudeFilter(AltitudeFilter.between2000and3000)),
               _filterChip('-2000m',
                   summitViewModel.altitudeFilter == AltitudeFilter.below2000,
-                  () => summitViewModel.setAltitudeFilter(AltitudeFilter.below2000)),
+                  () => summitViewModel
+                      .setAltitudeFilter(AltitudeFilter.below2000)),
             ],
           ),
         ],
@@ -259,6 +284,9 @@ class _MapViewState extends State<MapView> {
     final summitViewModel = context.watch<SummitViewModel>();
     final summits = summitViewModel.filteredSummits;
 
+    WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _checkNotifications());
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Cim Peaks'),
@@ -266,8 +294,11 @@ class _MapViewState extends State<MapView> {
         foregroundColor: Colors.white,
         actions: [
           IconButton(
-            icon: Icon(_filtersVisible ? Icons.filter_list_off : Icons.filter_list),
-            onPressed: () => setState(() => _filtersVisible = !_filtersVisible),
+            icon: Icon(_filtersVisible
+                ? Icons.filter_list_off
+                : Icons.filter_list),
+            onPressed: () =>
+                setState(() => _filtersVisible = !_filtersVisible),
           ),
           IconButton(
             icon: const Icon(Icons.logout),
@@ -296,14 +327,16 @@ class _MapViewState extends State<MapView> {
               child: _buildFilterPanel(summitViewModel),
             ),
           if (summitViewModel.isLoading)
-            const Center(child: CircularProgressIndicator(color: Colors.green)),
+            const Center(
+                child: CircularProgressIndicator(color: Colors.green)),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {},
         backgroundColor: Colors.green,
         icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text('Afegir cim', style: TextStyle(color: Colors.white)),
+        label: const Text('Afegir cim',
+            style: TextStyle(color: Colors.white)),
       ),
     );
   }
@@ -312,5 +345,113 @@ class _MapViewState extends State<MapView> {
   void dispose() {
     _mapController?.dispose();
     super.dispose();
+  }
+}
+
+class _AchievementOverlay extends StatefulWidget {
+  final String message;
+  final VoidCallback onDismiss;
+
+  const _AchievementOverlay({
+    required this.message,
+    required this.onDismiss,
+  });
+
+  @override
+  State<_AchievementOverlay> createState() => _AchievementOverlayState();
+}
+
+class _AchievementOverlayState extends State<_AchievementOverlay>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _fadeAnimation;
+  late Animation<Offset> _slideAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 400),
+      vsync: this,
+    );
+    _fadeAnimation =
+        Tween<double>(begin: 0, end: 1).animate(_controller);
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0, -1),
+      end: Offset.zero,
+    ).animate(
+        CurvedAnimation(parent: _controller, curve: Curves.easeOut));
+
+    _controller.forward();
+
+    Future.delayed(const Duration(seconds: 3), () {
+      if (mounted) {
+        _controller.reverse().then((_) => widget.onDismiss());
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      top: 100,
+      left: 24,
+      right: 24,
+      child: SlideTransition(
+        position: _slideAnimation,
+        child: FadeTransition(
+          opacity: _fadeAnimation,
+          child: Material(
+            elevation: 8,
+            borderRadius: BorderRadius.circular(16),
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 20, vertical: 16),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF2E7D32), Color(0xFF66BB6A)],
+                ),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Row(
+                children: [
+                  const Text('🏅',
+                      style: TextStyle(fontSize: 32)),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Medalla Guanyada!',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                        Text(
+                          widget.message,
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
