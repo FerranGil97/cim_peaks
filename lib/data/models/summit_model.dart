@@ -10,6 +10,7 @@ class SummitModel {
   final String? massif;
   final SummitStatus status;
   final DateTime? achievedAt;
+  final List<String> photos;
 
   SummitModel({
     required this.id,
@@ -23,6 +24,7 @@ class SummitModel {
     this.massif,
     this.status = SummitStatus.pending,
     this.achievedAt,
+    this.photos = const [],
   });
 
   factory SummitModel.fromFirestore(Map<String, dynamic> data, String id) {
@@ -43,6 +45,7 @@ class SummitModel {
       achievedAt: data['achievedAt'] != null
           ? DateTime.parse(data['achievedAt'])
           : null,
+      photos: List<String>.from(data['photos'] ?? []),
     );
   }
 
@@ -58,6 +61,7 @@ class SummitModel {
       'massif': massif,
       'status': status.name,
       'achievedAt': achievedAt?.toIso8601String(),
+      'photos': photos,
     };
   }
 
@@ -72,6 +76,7 @@ class SummitModel {
     String? massif,
     SummitStatus? status,
     DateTime? achievedAt,
+    List<String>? photos,
   }) {
     return SummitModel(
       id: id,
@@ -85,6 +90,7 @@ class SummitModel {
       massif: massif ?? this.massif,
       status: status ?? this.status,
       achievedAt: achievedAt ?? this.achievedAt,
+      photos: photos ?? this.photos,
     );
   }
 }

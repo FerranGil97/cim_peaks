@@ -80,4 +80,43 @@ class SummitRepository {
         .doc(summitId)
         .delete();
   }
+  // Afegir foto a un cim de l'usuari
+  Future<void> addPhotoToSummit(
+      String userId, String summitId, String photoUrl) async {
+    await _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('user_summits')
+        .doc(summitId)
+        .set({
+      'photos': FieldValue.arrayUnion([photoUrl]),
+    }, SetOptions(merge: true));
+  }
+
+  // Eliminar foto d'un cim de l'usuari
+  Future<void> removePhotoFromSummit(
+      String userId, String summitId, String photoUrl) async {
+    await _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('user_summits')
+        .doc(summitId)
+        .update({
+      'photos': FieldValue.arrayRemove([photoUrl]),
+    });
+  }
+
+  // Obtenir fotos d'un cim
+  Future<List<String>> getSummitPhotos(
+      String userId, String summitId) async {
+    final doc = await _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('user_summits')
+        .doc(summitId)
+        .get();
+    if (!doc.exists) return [];
+    final data = doc.data()!;
+    return List<String>.from(data['photos'] ?? []);
+  }
 }

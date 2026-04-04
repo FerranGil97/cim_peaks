@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../data/models/summit_model.dart';
 import '../../viewmodels/auth_viewmodel.dart';
 import '../../viewmodels/summit_viewmodel.dart';
+import '../summit/summit_detail_view.dart';
 
 class MapView extends StatefulWidget {
   const MapView({super.key});
@@ -89,91 +90,13 @@ class _MapViewState extends State<MapView> {
   }
 
   void _showSummitDetail(SummitModel summit) {
-    final authViewModel = context.read<AuthViewModel>();
-    final summitViewModel = context.read<SummitViewModel>();
-
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(summit.name,
-                style: const TextStyle(
-                    fontSize: 24, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 4),
-            Text('${summit.altitude}m · ${summit.province ?? ''}',
-                style: const TextStyle(color: Colors.grey)),
-            if (summit.description != null) ...[
-              const SizedBox(height: 8),
-              Text(summit.description!),
-            ],
-            const SizedBox(height: 16),
-            const Text('Canvia l\'estat:',
-                style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: _statusButton(
-                    label: 'Assolit',
-                    color: Colors.green,
-                    icon: Icons.check_circle,
-                    onTap: () {
-                      summitViewModel.updateSummitStatus(
-                        authViewModel.currentUser!.uid,
-                        summit.id,
-                        SummitStatus.achieved,
-                      );
-                      Navigator.pop(context);
-                    },
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _statusButton(
-                    label: 'Guardat',
-                    color: Colors.orange,
-                    icon: Icons.star,
-                    onTap: () {
-                      summitViewModel.updateSummitStatus(
-                        authViewModel.currentUser!.uid,
-                        summit.id,
-                        SummitStatus.saved,
-                      );
-                      Navigator.pop(context);
-                    },
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _statusButton(
-                    label: 'Pendent',
-                    color: Colors.red,
-                    icon: Icons.radio_button_unchecked,
-                    onTap: () {
-                      summitViewModel.updateSummitStatus(
-                        authViewModel.currentUser!.uid,
-                        summit.id,
-                        SummitStatus.pending,
-                      );
-                      Navigator.pop(context);
-                    },
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-          ],
-        ),
-      ),
-    );
-  }
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => SummitDetailView(summit: summit),
+    ),
+  );
+}
 
   Widget _statusButton({
     required String label,
