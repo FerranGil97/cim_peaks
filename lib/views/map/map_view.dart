@@ -5,6 +5,7 @@ import '../../data/models/summit_model.dart';
 import '../../viewmodels/auth_viewmodel.dart';
 import '../../viewmodels/summit_viewmodel.dart';
 import '../summit/summit_detail_view.dart';
+import '../summit/add_summit_view.dart';
 
 class MapView extends StatefulWidget {
   const MapView({super.key});
@@ -255,11 +256,13 @@ class _MapViewState extends State<MapView> {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {},
+        onPressed: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const AddSummitView()),
+        ),
         backgroundColor: Colors.green,
         icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text('Afegir cim',
-            style: TextStyle(color: Colors.white)),
+        label: const Text('Afegir cim', style: TextStyle(color: Colors.white)),
       ),
     );
   }

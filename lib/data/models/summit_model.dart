@@ -33,7 +33,7 @@ class SummitModel {
       name: data['name'] ?? '',
       latitude: (data['latitude'] ?? 0).toDouble(),
       longitude: (data['longitude'] ?? 0).toDouble(),
-      altitude: data['altitude'] ?? 0,
+      altitude: (data['altitude'] ?? 0).toInt(),
       description: data['description'],
       imageUrl: data['imageUrl'],
       province: data['province'],
