@@ -5,13 +5,22 @@ import 'firebase_options.dart';
 import 'viewmodels/auth_viewmodel.dart';
 import 'viewmodels/summit_viewmodel.dart';
 import 'viewmodels/profile_viewmodel.dart';
+import 'viewmodels/feed_viewmodel.dart';
+import 'viewmodels/social_viewmodel.dart';
+import 'viewmodels/notification_viewmodel.dart';
+import 'viewmodels/business_viewmodel.dart';
 import 'views/auth/login_view.dart';
 import 'views/auth/register_view.dart';
 import 'views/map/map_view.dart';
 import 'views/profile/profile_view.dart';
+import 'views/feed/feed_view.dart';
+import 'views/services/services_view.dart';
+import 'views/shared/splash_view.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await initializeDateFormatting('ca', null);
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
@@ -28,19 +37,57 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AuthViewModel()),
         ChangeNotifierProvider(create: (_) => SummitViewModel()),
         ChangeNotifierProvider(create: (_) => ProfileViewModel()),
+        ChangeNotifierProvider(create: (_) => FeedViewModel()),
+        ChangeNotifierProvider(create: (_) => SocialViewModel()),
+        ChangeNotifierProvider(create: (_) => NotificationViewModel()),
+        ChangeNotifierProvider(create: (_) => BusinessViewModel()),
       ],
       child: MaterialApp(
         title: 'Cim Peaks',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: Colors.green),
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: const Color(0xFF2E7D32),
+            primary: const Color(0xFF2E7D32),
+          ),
           useMaterial3: true,
+          appBarTheme: const AppBarTheme(
+            elevation: 0,
+            centerTitle: true,
+          ),
+          cardTheme: CardThemeData(
+            elevation: 2,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          elevatedButtonTheme: ElevatedButtonThemeData(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2E7D32),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+          inputDecorationTheme: InputDecorationTheme(
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(
+                  color: Color(0xFF2E7D32), width: 2),
+            ),
+          ),
         ),
+        initialRoute: '/',
         routes: {
+          '/': (context) => const SplashView(),
+          '/auth': (context) => const AuthGate(),
           '/login': (context) => const LoginView(),
           '/register': (context) => const RegisterView(),
         },
-        home: const AuthGate(),
       ),
     );
   }
@@ -52,6 +99,14 @@ class AuthGate extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final authViewModel = context.watch<AuthViewModel>();
+
+    if (authViewModel.status == AuthStatus.authenticated &&
+        authViewModel.currentUser != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        context.read<NotificationViewModel>().loadNotifications(
+            authViewModel.currentUser!.uid);
+      });
+    }
 
     switch (authViewModel.status) {
       case AuthStatus.authenticated:
@@ -78,10 +133,12 @@ class MainNavigation extends StatefulWidget {
 }
 
 class _MainNavigationState extends State<MainNavigation> {
-  int _currentIndex = 0;
+  int _currentIndex = 1;
 
   final List<Widget> _pages = const [
+    FeedView(),
     MapView(),
+    ServicesView(),
     ProfileView(),
   ];
 
@@ -96,8 +153,16 @@ class _MainNavigationState extends State<MainNavigation> {
         unselectedItemColor: Colors.grey,
         items: const [
           BottomNavigationBarItem(
+            icon: Icon(Icons.people),
+            label: 'Feed',
+          ),
+          BottomNavigationBarItem(
             icon: Icon(Icons.map),
             label: 'Mapa',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.store),
+            label: 'Serveis',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.person),

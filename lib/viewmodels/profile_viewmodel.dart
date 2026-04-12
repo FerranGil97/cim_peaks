@@ -2,14 +2,24 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../data/models/summit_model.dart';
 import '../data/models/user_model.dart';
+import '../data/repositories/social_repository.dart';
+import 'dart:io';
+import '../data/services/storage_service.dart';
+
 
 class ProfileViewModel extends ChangeNotifier {
   UserModel? _user;
   List<SummitModel> _userSummits = [];
   bool _isLoading = false;
+  List<Map<String, dynamic>> _following = [];
+  List<Map<String, dynamic>> _followers = [];
+
+  final SocialRepository _socialRepository = SocialRepository();
 
   UserModel? get user => _user;
   bool get isLoading => _isLoading;
+  List<Map<String, dynamic>> get following => _following;
+  List<Map<String, dynamic>> get followers => _followers;
 
   int get totalAchieved =>
       _userSummits.where((s) => s.status == SummitStatus.achieved).length;
@@ -21,7 +31,6 @@ class ProfileViewModel extends ChangeNotifier {
       .where((s) => s.status == SummitStatus.achieved)
       .fold(0, (max, s) => s.altitude > max ? s.altitude : max);
 
-  // Nivell basat en cims assolits
   int get level {
     if (totalAchieved >= 50) return 5;
     if (totalAchieved >= 25) return 4;
@@ -29,6 +38,24 @@ class ProfileViewModel extends ChangeNotifier {
     if (totalAchieved >= 5) return 2;
     return 1;
   }
+  String? _photoUrl;
+    String? get photoUrl => _user?.photoUrl;
+
+    Future<void> updateProfilePhoto(String userId, File image) async {
+      final storageService = StorageService();
+      final url = await storageService.uploadSummitPhoto(
+        userId: userId,
+        summitId: 'profile',
+        image: image,
+      );
+      if (url != null) {
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(userId)
+            .update({'photoUrl': url});
+        notifyListeners();
+      }
+    }
 
   String get levelName {
     return switch (level) {
@@ -100,7 +127,8 @@ class ProfileViewModel extends ChangeNotifier {
                 .where((s) =>
                     s.status == SummitStatus.achieved &&
                     (s.massif ?? '').contains('Pirineu'))
-                .length >= 3,
+                .length >=
+            3,
       },
       {
         'icon': '🧗',
@@ -109,15 +137,15 @@ class ProfileViewModel extends ChangeNotifier {
         'earned': _userSummits
                 .where((s) =>
                     s.status == SummitStatus.achieved && s.altitude >= 2500)
-                .length >= 5,
+                .length >=
+            5,
       },
     ];
     return badges;
   }
 
-  // Manté el getter antic per compatibilitat
   List<Map<String, dynamic>> get badges =>
-    allBadges.where((b) => b['earned'] == true).toList();
+      allBadges.where((b) => b['earned'] == true).toList();
 
   Future<void> loadProfile(String userId) async {
     _isLoading = true;
@@ -140,7 +168,6 @@ class ProfileViewModel extends ChangeNotifier {
           .collection('user_summits')
           .get();
 
-      // Obtenir detalls de cada cim
       final List<SummitModel> summits = [];
       for (final doc in summitsSnapshot.docs) {
         final globalDoc = await FirebaseFirestore.instance
@@ -155,6 +182,9 @@ class ProfileViewModel extends ChangeNotifier {
         }
       }
       _userSummits = summits;
+
+      // Carregar seguits i seguidors
+      await _loadFollowData(userId);
     } catch (e) {
       debugPrint('Error carregant perfil: $e');
     }
@@ -162,4 +192,46 @@ class ProfileViewModel extends ChangeNotifier {
     _isLoading = false;
     notifyListeners();
   }
+
+  Future<void> _loadFollowData(String userId) async {
+    try {
+      final followingIds =
+          await _socialRepository.getFollowingIds(userId);
+      final followerIds =
+          await _socialRepository.getFollowerIds(userId);
+
+      // Obtenir dades dels usuaris seguits
+      _following = [];
+      for (final id in followingIds) {
+        final doc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(id)
+            .get();
+        if (doc.exists) {
+          _following.add({'id': id, ...doc.data()!});
+        }
+      }
+
+      // Obtenir dades dels seguidors
+      _followers = [];
+      for (final id in followerIds) {
+        final doc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(id)
+            .get();
+        if (doc.exists) {
+          _followers.add({'id': id, ...doc.data()!});
+        }
+      }
+    } catch (e) {
+      debugPrint('Error carregant follow data: $e');
+    }
+  }
+  List<SummitModel> get achievedSummits =>
+      _userSummits.where((s) => s.status == SummitStatus.achieved).toList()
+        ..sort((a, b) => b.altitude.compareTo(a.altitude));
+
+  List<SummitModel> get savedSummits =>
+      _userSummits.where((s) => s.status == SummitStatus.saved).toList()
+        ..sort((a, b) => b.altitude.compareTo(a.altitude));
 }

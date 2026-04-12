@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
 import '../../data/models/summit_model.dart';
 import '../../viewmodels/auth_viewmodel.dart';
 import '../../viewmodels/summit_viewmodel.dart';
+import '../../viewmodels/notification_viewmodel.dart';
 import '../summit/summit_detail_view.dart';
-import '../summit/add_summit_view.dart';
+import '../summit/summit_list_view.dart';
+import '../notifications/notifications_view.dart';
 
 class MapView extends StatefulWidget {
   const MapView({super.key});
@@ -17,12 +20,12 @@ class MapView extends StatefulWidget {
 class _MapViewState extends State<MapView> {
   GoogleMapController? _mapController;
   static const LatLng _initialPosition = LatLng(42.0, 1.5);
-  bool _filtersVisible = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _requestLocationPermission();
       final authViewModel = context.read<AuthViewModel>();
       final summitViewModel = context.read<SummitViewModel>();
 
@@ -38,9 +41,15 @@ class _MapViewState extends State<MapView> {
     });
   }
 
+  Future<void> _requestLocationPermission() async {
+    final permission = await Geolocator.requestPermission();
+    if (permission == LocationPermission.denied) {
+      await Geolocator.requestPermission();
+    }
+  }
+
   void _checkNotifications() {
     final summitViewModel = context.read<SummitViewModel>();
-
     if (summitViewModel.newBadgeMessage != null) {
       final message = summitViewModel.newBadgeMessage!;
       summitViewModel.clearNotifications();
@@ -91,113 +100,10 @@ class _MapViewState extends State<MapView> {
   }
 
   void _showSummitDetail(SummitModel summit) {
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (_) => SummitDetailView(summit: summit),
-    ),
-  );
-}
-
-  Widget _statusButton({
-    required String label,
-    required Color color,
-    required IconData icon,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          border: Border.all(color: color),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: color),
-            const SizedBox(height: 4),
-            Text(label, style: TextStyle(color: color, fontSize: 12)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFilterPanel(SummitViewModel summitViewModel) {
-    return Container(
-      margin: const EdgeInsets.all(8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 8)],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text('Filtre per estat',
-              style: TextStyle(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            children: [
-              _filterChip('Tots',
-                  summitViewModel.statusFilter == SummitFilter.all,
-                  () => summitViewModel.setStatusFilter(SummitFilter.all)),
-              _filterChip('Assolits ✅',
-                  summitViewModel.statusFilter == SummitFilter.achieved,
-                  () => summitViewModel.setStatusFilter(SummitFilter.achieved)),
-              _filterChip('Pendents 🔴',
-                  summitViewModel.statusFilter == SummitFilter.pending,
-                  () => summitViewModel.setStatusFilter(SummitFilter.pending)),
-              _filterChip('Guardats ⭐',
-                  summitViewModel.statusFilter == SummitFilter.saved,
-                  () => summitViewModel.setStatusFilter(SummitFilter.saved)),
-            ],
-          ),
-          const SizedBox(height: 12),
-          const Text('Filtre per altitud',
-              style: TextStyle(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            children: [
-              _filterChip('Tots',
-                  summitViewModel.altitudeFilter == AltitudeFilter.all,
-                  () => summitViewModel.setAltitudeFilter(AltitudeFilter.all)),
-              _filterChip('+3000m',
-                  summitViewModel.altitudeFilter == AltitudeFilter.above3000,
-                  () => summitViewModel
-                      .setAltitudeFilter(AltitudeFilter.above3000)),
-              _filterChip('2000-3000m',
-                  summitViewModel.altitudeFilter ==
-                      AltitudeFilter.between2000and3000,
-                  () => summitViewModel
-                      .setAltitudeFilter(AltitudeFilter.between2000and3000)),
-              _filterChip('-2000m',
-                  summitViewModel.altitudeFilter == AltitudeFilter.below2000,
-                  () => summitViewModel
-                      .setAltitudeFilter(AltitudeFilter.below2000)),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _filterChip(String label, bool selected, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Chip(
-        label: Text(label),
-        backgroundColor: selected ? Colors.green : Colors.grey[200],
-        labelStyle: TextStyle(
-          color: selected ? Colors.white : Colors.black,
-          fontSize: 12,
-        ),
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SummitDetailView(summit: summit),
       ),
     );
   }
@@ -206,7 +112,12 @@ class _MapViewState extends State<MapView> {
   Widget build(BuildContext context) {
     final authViewModel = context.watch<AuthViewModel>();
     final summitViewModel = context.watch<SummitViewModel>();
-    final summits = summitViewModel.filteredSummits;
+
+    final summits = summitViewModel.allSummits
+        .where((s) =>
+            s.status == SummitStatus.achieved ||
+            s.status == SummitStatus.saved)
+        .toList();
 
     WidgetsBinding.instance.addPostFrameCallback(
         (_) => _checkNotifications());
@@ -217,12 +128,53 @@ class _MapViewState extends State<MapView> {
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
         actions: [
-          IconButton(
-            icon: Icon(_filtersVisible
-                ? Icons.filter_list_off
-                : Icons.filter_list),
-            onPressed: () =>
-                setState(() => _filtersVisible = !_filtersVisible),
+          Consumer<NotificationViewModel>(
+            builder: (context, notifViewModel, _) {
+              return Stack(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.notifications_outlined),
+                    onPressed: () async {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const NotificationsView()),
+                      );
+                      if (context.mounted) {
+                        final authViewModel =
+                            context.read<AuthViewModel>();
+                        context
+                            .read<NotificationViewModel>()
+                            .markAllAsRead(
+                                authViewModel.currentUser!.uid);
+                      }
+                    },
+                  ),
+                  if (notifViewModel.unreadCount > 0)
+                    Positioned(
+                      right: 8,
+                      top: 8,
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: const BoxDecoration(
+                          color: Colors.red,
+                          shape: BoxShape.circle,
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 16,
+                          minHeight: 16,
+                        ),
+                        child: Text(
+                          '${notifViewModel.unreadCount}',
+                          style: const TextStyle(
+                              color: Colors.white, fontSize: 10),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
           ),
           IconButton(
             icon: const Icon(Icons.logout),
@@ -243,12 +195,42 @@ class _MapViewState extends State<MapView> {
             myLocationButtonEnabled: true,
             mapType: MapType.terrain,
           ),
-          if (_filtersVisible)
+          if (summits.isEmpty && !summitViewModel.isLoading)
             Positioned(
-              top: 8,
-              left: 8,
-              right: 8,
-              child: _buildFilterPanel(summitViewModel),
+              bottom: 80,
+              left: 24,
+              right: 24,
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: const [
+                    BoxShadow(color: Colors.black26, blurRadius: 8)
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.info_outline, color: Colors.green),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        'Busca cims a la llista i marca\'ls com a fets o guardats!',
+                        style: TextStyle(fontSize: 13),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const SummitListView()),
+                      ),
+                      child: const Text('Veure llista',
+                          style: TextStyle(color: Colors.green)),
+                    ),
+                  ],
+                ),
+              ),
             ),
           if (summitViewModel.isLoading)
             const Center(
@@ -258,11 +240,12 @@ class _MapViewState extends State<MapView> {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => const AddSummitView()),
+          MaterialPageRoute(builder: (_) => const SummitListView()),
         ),
         backgroundColor: Colors.green,
-        icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text('Afegir cim', style: TextStyle(color: Colors.white)),
+        icon: const Icon(Icons.list, color: Colors.white),
+        label: const Text('Llistat de tots els cims',
+            style: TextStyle(color: Colors.white)),
       ),
     );
   }
@@ -347,8 +330,7 @@ class _AchievementOverlayState extends State<_AchievementOverlay>
               ),
               child: Row(
                 children: [
-                  const Text('🏅',
-                      style: TextStyle(fontSize: 32)),
+                  const Text('🏅', style: TextStyle(fontSize: 32)),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(

@@ -6,6 +6,8 @@ import '../../data/repositories/summit_repository.dart';
 import '../../data/services/storage_service.dart';
 import '../../viewmodels/auth_viewmodel.dart';
 import '../../viewmodels/summit_viewmodel.dart';
+import '../feed/publish_activity_view.dart';
+import '../../data/models/activity_model.dart';
 
 class SummitDetailView extends StatefulWidget {
   final SummitModel summit;
@@ -26,6 +28,10 @@ class _SummitDetailViewState extends State<SummitDetailView> {
   void initState() {
     super.initState();
     _loadPhotos();
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
   }
 
   Future<void> _loadPhotos() async {
@@ -152,7 +158,6 @@ class _SummitDetailViewState extends State<SummitDetailView> {
     return Scaffold(
       body: CustomScrollView(
         slivers: [
-          // Header
           SliverAppBar(
             expandedHeight: 200,
             pinned: true,
@@ -193,7 +198,8 @@ class _SummitDetailViewState extends State<SummitDetailView> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            mainAxisAlignment:
+                                MainAxisAlignment.spaceBetween,
                             children: [
                               Text('${widget.summit.altitude}m',
                                   style: const TextStyle(
@@ -207,14 +213,14 @@ class _SummitDetailViewState extends State<SummitDetailView> {
                                       .withOpacity(0.1),
                                   borderRadius: BorderRadius.circular(20),
                                   border: Border.all(
-                                      color:
-                                          _statusColor(widget.summit.status)),
+                                      color: _statusColor(
+                                          widget.summit.status)),
                                 ),
                                 child: Text(
                                   _statusLabel(widget.summit.status),
                                   style: TextStyle(
-                                      color:
-                                          _statusColor(widget.summit.status),
+                                      color: _statusColor(
+                                          widget.summit.status),
                                       fontWeight: FontWeight.bold),
                                 ),
                               ),
@@ -223,10 +229,30 @@ class _SummitDetailViewState extends State<SummitDetailView> {
                           const SizedBox(height: 8),
                           if (widget.summit.province != null)
                             Text('📍 ${widget.summit.province}',
-                                style: const TextStyle(color: Colors.grey)),
+                                style:
+                                    const TextStyle(color: Colors.grey)),
                           if (widget.summit.massif != null)
                             Text('⛰️ ${widget.summit.massif}',
-                                style: const TextStyle(color: Colors.grey)),
+                                style:
+                                    const TextStyle(color: Colors.grey)),
+                          // Data d'assoliment
+                          if (widget.summit.status ==
+                                  SummitStatus.achieved &&
+                              widget.summit.achievedAt != null) ...[
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                const Icon(Icons.calendar_today,
+                                    size: 14, color: Colors.green),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Assolit el ${_formatDate(widget.summit.achievedAt!)}',
+                                  style: const TextStyle(
+                                      color: Colors.green, fontSize: 13),
+                                ),
+                              ],
+                            ),
+                          ],
                           if (widget.summit.description != null) ...[
                             const SizedBox(height: 8),
                             Text(widget.summit.description!),
@@ -248,7 +274,8 @@ class _SummitDetailViewState extends State<SummitDetailView> {
                         children: [
                           const Text('Canvia l\'estat',
                               style: TextStyle(
-                                  fontWeight: FontWeight.bold, fontSize: 16)),
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16)),
                           const SizedBox(height: 12),
                           Row(
                             children: [
@@ -257,13 +284,83 @@ class _SummitDetailViewState extends State<SummitDetailView> {
                                   label: 'Assolit',
                                   color: Colors.green,
                                   icon: Icons.check_circle,
-                                  onTap: () {
+                                  onTap: () async {
                                     summitViewModel.updateSummitStatus(
                                       authViewModel.currentUser!.uid,
                                       widget.summit.id,
                                       SummitStatus.achieved,
                                     );
-                                    Navigator.pop(context);
+
+                                    final publish =
+                                        await showDialog<bool>(
+                                      context: context,
+                                      builder: (_) => AlertDialog(
+                                        title: const Text(
+                                            '🎉 Cim assolit!'),
+                                        content: const Text(
+                                            'Vols publicar aquesta ascensió al feed perquè els altres usuaris la puguin veure?'),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () =>
+                                                Navigator.pop(
+                                                    context, false),
+                                            child: const Text(
+                                                'No, gràcies'),
+                                          ),
+                                          ElevatedButton(
+                                            onPressed: () =>
+                                                Navigator.pop(
+                                                    context, true),
+                                            style: ElevatedButton
+                                                .styleFrom(
+                                                    backgroundColor:
+                                                        Colors.green,
+                                                    foregroundColor:
+                                                        Colors.white),
+                                            child: const Text(
+                                                'Publicar!'),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+
+                                    if (!context.mounted) return;
+
+                                    if (publish == true) {
+                                      final sport =
+                                          await showModalBottomSheet
+                                              <SportType>(
+                                        context: context,
+                                        shape:
+                                            const RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.vertical(
+                                                  top:
+                                                      Radius.circular(
+                                                          20)),
+                                        ),
+                                        builder: (_) =>
+                                            const _SportPickerSheet(),
+                                      );
+
+                                      if (sport != null &&
+                                          context.mounted) {
+                                        await Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) =>
+                                                PublishActivityView(
+                                              summit: widget.summit,
+                                              sport: sport,
+                                            ),
+                                          ),
+                                        );
+                                      }
+                                    }
+
+                                    if (context.mounted) {
+                                      Navigator.pop(context);
+                                    }
                                   },
                                 ),
                               ),
@@ -317,9 +414,11 @@ class _SummitDetailViewState extends State<SummitDetailView> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            mainAxisAlignment:
+                                MainAxisAlignment.spaceBetween,
                             children: [
-                              Text('Les meves fotos (${_photos.length})',
+                              Text(
+                                  'Les meves fotos (${_photos.length})',
                                   style: const TextStyle(
                                       fontWeight: FontWeight.bold,
                                       fontSize: 16)),
@@ -352,7 +451,8 @@ class _SummitDetailViewState extends State<SummitDetailView> {
                           else
                             GridView.builder(
                               shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
+                              physics:
+                                  const NeverScrollableScrollPhysics(),
                               gridDelegate:
                                   const SliverGridDelegateWithFixedCrossAxisCount(
                                 crossAxisCount: 3,
@@ -362,23 +462,27 @@ class _SummitDetailViewState extends State<SummitDetailView> {
                               itemCount: _photos.length,
                               itemBuilder: (context, index) {
                                 return GestureDetector(
-                                  onTap: () => _showFullPhoto(_photos[index]),
+                                  onTap: () =>
+                                      _showFullPhoto(_photos[index]),
                                   onLongPress: () =>
                                       _deletePhoto(_photos[index]),
                                   child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(8),
+                                    borderRadius:
+                                        BorderRadius.circular(8),
                                     child: Image.network(
                                       _photos[index],
                                       fit: BoxFit.cover,
                                       loadingBuilder:
                                           (context, child, progress) {
-                                        if (progress == null) return child;
+                                        if (progress == null)
+                                          return child;
                                         return Container(
                                           color: Colors.grey[200],
                                           child: const Center(
-                                            child: CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                                color: Colors.green),
+                                            child:
+                                                CircularProgressIndicator(
+                                                    strokeWidth: 2,
+                                                    color: Colors.green),
                                           ),
                                         );
                                       },
@@ -442,6 +546,64 @@ class _SummitDetailViewState extends State<SummitDetailView> {
             Text(label, style: TextStyle(color: color, fontSize: 12)),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _SportPickerSheet extends StatelessWidget {
+  const _SportPickerSheet();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'Com has fet el cim?',
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 24),
+          GridView.count(
+            shrinkWrap: true,
+            crossAxisCount: 3,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            childAspectRatio: 1.2,
+            children: SportType.values.map((sport) {
+              return GestureDetector(
+                onTap: () => Navigator.pop(context, sport),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.green[50],
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.green[200]!),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(sport.emoji,
+                          style: const TextStyle(fontSize: 28)),
+                      const SizedBox(height: 4),
+                      Text(
+                        sport.label,
+                        style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 16),
+        ],
       ),
     );
   }
