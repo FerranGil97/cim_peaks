@@ -39,6 +39,87 @@ class _LoginViewState extends State<LoginView> {
     }
   }
 
+  void _showForgotPasswordDialog() {
+    final emailController = TextEditingController(
+      text: _emailController.text.trim(),
+    );
+    bool isLoading = false;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Recuperar contrasenya'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Introdueix el teu email i t\'enviarem un correu per restablir la contrasenya.',
+                style: TextStyle(color: Colors.grey, fontSize: 13),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: emailController,
+                keyboardType: TextInputType.emailAddress,
+                decoration: const InputDecoration(
+                  labelText: 'Email',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.email_outlined),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: isLoading ? null : () => Navigator.pop(context),
+              child: const Text('Cancel·lar'),
+            ),
+            ElevatedButton(
+              onPressed: isLoading
+                  ? null
+                  : () async {
+                      if (emailController.text.trim().isEmpty) return;
+                      setDialogState(() => isLoading = true);
+
+                      final authViewModel = context.read<AuthViewModel>();
+                      final success = await authViewModel
+                          .sendPasswordResetEmail(emailController.text.trim());
+
+                      if (context.mounted) {
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              success
+                                  ? '✅ Correu enviat! Revisa la teva safata d\'entrada.'
+                                  : authViewModel.errorMessage ?? 'Error desconegut',
+                            ),
+                            backgroundColor:
+                                success ? Colors.green : Colors.red,
+                          ),
+                        );
+                      }
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+              ),
+              child: isLoading
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                          color: Colors.white, strokeWidth: 2),
+                    )
+                  : const Text('Enviar correu'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final authViewModel = context.watch<AuthViewModel>();
@@ -54,7 +135,6 @@ class _LoginViewState extends State<LoginView> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const SizedBox(height: 48),
-                // Logo i títol
                 const Icon(Icons.terrain, size: 80, color: Colors.green),
                 const SizedBox(height: 16),
                 const Text(
@@ -68,7 +148,6 @@ class _LoginViewState extends State<LoginView> {
                   style: TextStyle(fontSize: 16, color: Colors.grey),
                 ),
                 const SizedBox(height: 48),
-                // Camp email
                 TextFormField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
@@ -84,7 +163,6 @@ class _LoginViewState extends State<LoginView> {
                   },
                 ),
                 const SizedBox(height: 16),
-                // Camp contrasenya
                 TextFormField(
                   controller: _passwordController,
                   obscureText: _obscurePassword,
@@ -106,8 +184,19 @@ class _LoginViewState extends State<LoginView> {
                     return null;
                   },
                 ),
-                const SizedBox(height: 24),
-                // Botó login
+                const SizedBox(height: 8),
+                // 👈 Botó "Has oblidat la contrasenya?"
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: _showForgotPasswordDialog,
+                    child: const Text(
+                      'Has oblidat la contrasenya?',
+                      style: TextStyle(color: Colors.green),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
                 ElevatedButton(
                   onPressed: isLoading ? null : _login,
                   style: ElevatedButton.styleFrom(
@@ -120,16 +209,17 @@ class _LoginViewState extends State<LoginView> {
                   ),
                   child: isLoading
                       ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text('Iniciar sessió', style: TextStyle(fontSize: 16)),
+                      : const Text('Iniciar sessió',
+                          style: TextStyle(fontSize: 16)),
                 ),
                 const SizedBox(height: 16),
-                // Enllaç registre
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     const Text('No tens compte? '),
                     TextButton(
-                      onPressed: () => Navigator.pushNamed(context, '/register'),
+                      onPressed: () =>
+                          Navigator.pushNamed(context, '/register'),
                       child: const Text('Registra\'t',
                           style: TextStyle(color: Colors.green)),
                     ),

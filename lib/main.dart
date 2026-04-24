@@ -17,6 +17,7 @@ import 'views/feed/feed_view.dart';
 import 'views/services/services_view.dart';
 import 'views/shared/splash_view.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'views/shared/onboarding_view.dart'; 
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -84,6 +85,7 @@ class MyApp extends StatelessWidget {
         initialRoute: '/',
         routes: {
           '/': (context) => const SplashView(),
+          '/onboarding': (context) => const OnboardingView(),
           '/auth': (context) => const AuthGate(),
           '/login': (context) => const LoginView(),
           '/register': (context) => const RegisterView(),

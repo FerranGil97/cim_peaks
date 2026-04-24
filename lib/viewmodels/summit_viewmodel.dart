@@ -4,6 +4,7 @@ import '../data/repositories/summit_repository.dart';
 import '../data/repositories/notification_repository.dart';
 import '../data/models/notification_model.dart';
 import 'dart:math';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 enum SummitFilter { all, achieved, pending, saved }
 
@@ -26,6 +27,14 @@ class SummitViewModel extends ChangeNotifier {
   AltitudeFilter _altitudeFilter = AltitudeFilter.none;
   bool _isLoading = false;
   bool _initialized = false;
+
+  List<SummitModel> _challengeSummits = [];
+  bool _challengeLoading = false;
+  bool _challengeFilterActive = false;
+
+  List<SummitModel> get challengeSummits => _challengeSummits;
+  bool get challengeLoading => _challengeLoading;
+  bool get challengeFilterActive => _challengeFilterActive;
 
   List<String> _previousBadges = [];
   String? _newBadgeMessage;
@@ -163,6 +172,16 @@ class SummitViewModel extends ChangeNotifier {
           ));
         }
       }
+      // Actualitzar comptador de cims assolits a l'usuari
+      if (status == SummitStatus.achieved) {
+        final achievedCount = _allSummits
+            .where((s) => s.status == SummitStatus.achieved)
+            .length;
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(userId)
+            .update({'totalSummits': achievedCount});
+      }
 
       notifyListeners();
     }
@@ -233,5 +252,23 @@ class SummitViewModel extends ChangeNotifier {
     return earthRadius * c;
   }
 
+  Future<void> loadChallengeSummits(String userId) async {
+    _challengeLoading = true;
+    notifyListeners();
+    try {
+      _challengeSummits = await _repository.getChallengeSummits(userId);
+    } catch (e) {
+      debugPrint('Error carregant cims del repte: $e');
+    }
+    _challengeLoading = false;
+    notifyListeners();
+  }
+
+  void toggleChallengeFilter() {
+    _challengeFilterActive = !_challengeFilterActive;
+    notifyListeners();
+  }
+
   double _toRadians(double degrees) => degrees * pi / 180;
+
 }

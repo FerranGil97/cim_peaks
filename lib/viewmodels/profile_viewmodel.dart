@@ -21,6 +21,19 @@ class ProfileViewModel extends ChangeNotifier {
   List<Map<String, dynamic>> get following => _following;
   List<Map<String, dynamic>> get followers => _followers;
 
+  List<SummitModel> _challengeSummits = [];
+  List<SummitModel> _achievedChallengeSummits = [];
+  bool _challengeLoading = false;
+
+  List<SummitModel> get challengeSummits => _challengeSummits;
+  List<SummitModel> get achievedChallengeSummits => _achievedChallengeSummits;
+  bool get challengeLoading => _challengeLoading;
+  int get totalChallengeAchieved => _achievedChallengeSummits.length;
+  int get totalChallengeCount => _challengeSummits.length;
+  double get challengeProgress => _challengeSummits.isEmpty
+      ? 0
+      : totalChallengeAchieved / totalChallengeCount;
+
   int get totalAchieved =>
       _userSummits.where((s) => s.status == SummitStatus.achieved).length;
   int get totalSaved =>
@@ -121,7 +134,7 @@ class ProfileViewModel extends ChangeNotifier {
       },
       {
         'icon': '🌄',
-        'name': 'Madrugador',
+        'name': 'Pirenaic',
         'desc': 'Assoleix 3 cims del Pirineu',
         'earned': _userSummits
                 .where((s) =>
@@ -152,7 +165,7 @@ class ProfileViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // Carregar dades de l'usuari
+      // Pas 1: Carregar usuari i mostrar de seguida
       final userDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(userId)
@@ -160,37 +173,100 @@ class ProfileViewModel extends ChangeNotifier {
       if (userDoc.exists) {
         _user = UserModel.fromFirestore(userDoc.data()!, userId);
       }
+      _isLoading = false; // Mostrem el perfil amb les dades bàsiques ja
+      notifyListeners();
 
-      // Carregar cims de l'usuari
+      // Pas 2: Carregar la resta en paral·lel
+      await Future.wait([
+        _loadUserSummits(userId),
+        _loadFollowData(userId),
+        _loadChallengeProgress(userId),
+      ]);
+
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error carregant perfil: $e');
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> _loadUserSummits(String userId) async {
+    try {
       final summitsSnapshot = await FirebaseFirestore.instance
           .collection('users')
           .doc(userId)
           .collection('user_summits')
           .get();
 
+      final summitIds = summitsSnapshot.docs.map((d) => d.id).toList();
+      if (summitIds.isEmpty) return;
+
+      final userSummitsMap = {
+        for (var doc in summitsSnapshot.docs) doc.id: doc.data()
+      };
+
+      // whereIn en comptes de N crides individuals (màx 30 per lot)
       final List<SummitModel> summits = [];
-      for (final doc in summitsSnapshot.docs) {
-        final globalDoc = await FirebaseFirestore.instance
+      for (int i = 0; i < summitIds.length; i += 30) {
+        final chunk = summitIds.sublist(
+            i, i + 30 > summitIds.length ? summitIds.length : i + 30);
+        final globalSnapshot = await FirebaseFirestore.instance
             .collection('summits')
-            .doc(doc.id)
+            .where(FieldPath.documentId, whereIn: chunk)
             .get();
-        if (globalDoc.exists) {
-          final data = globalDoc.data()!;
-          data['status'] = doc.data()['status'];
-          data['achievedAt'] = doc.data()['achievedAt'];
+
+        for (final doc in globalSnapshot.docs) {
+          final data = doc.data();
+          final userData = userSummitsMap[doc.id];
+          if (userData != null) {
+            data['status'] = userData['status'];
+            data['achievedAt'] = userData['achievedAt'];
+          }
           summits.add(SummitModel.fromFirestore(data, doc.id));
         }
       }
+
       _userSummits = summits;
-
-      // Carregar seguits i seguidors
-      await _loadFollowData(userId);
+      notifyListeners();
     } catch (e) {
-      debugPrint('Error carregant perfil: $e');
+      debugPrint('Error carregant cims de l´usuari: $e');
     }
+  }
 
-    _isLoading = false;
-    notifyListeners();
+  Future<void> _loadChallengeProgress(String userId) async {
+    try {
+      _challengeLoading = true;
+
+      // Obtenir els 528 cims del repte
+      final challengeSnapshot = await FirebaseFirestore.instance
+          .collection('summits')
+          .where('showOnMap', isEqualTo: true)
+          .get();
+
+      _challengeSummits = challengeSnapshot.docs
+          .map((doc) => SummitModel.fromFirestore(doc.data(), doc.id))
+          .toList();
+
+      // Obtenir els que l'usuari ja ha assolit
+      final userSummitsSnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .collection('user_summits')
+          .where('status', isEqualTo: 'achieved')
+          .get();
+
+      final achievedIds = userSummitsSnapshot.docs.map((d) => d.id).toSet();
+
+      _achievedChallengeSummits = _challengeSummits
+          .where((s) => achievedIds.contains(s.id))
+          .toList();
+
+      _challengeLoading = false;
+    } catch (e) {
+      _challengeLoading = false;
+      debugPrint('Error carregant repte: $e');
+    }
   }
 
   Future<void> _loadFollowData(String userId) async {

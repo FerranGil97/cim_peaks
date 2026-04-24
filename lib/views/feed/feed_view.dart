@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../profile/public_profile_view.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../data/models/activity_model.dart';
@@ -147,6 +148,15 @@ class _ActivityCard extends StatelessWidget {
         children: [
           // Header
           ListTile(
+            onTap: activity.userId != currentUserId ? () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => PublicProfileView(
+                  userId: activity.userId,
+                  displayName: activity.userName,
+                ),
+              ),
+            ) : null,
             leading: CircleAvatar(
               backgroundColor: Colors.green,
               child: Text(

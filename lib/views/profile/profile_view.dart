@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'public_profile_view.dart';
 import 'package:provider/provider.dart';
 import '../../viewmodels/auth_viewmodel.dart';
 import '../../viewmodels/profile_viewmodel.dart';
@@ -6,6 +7,8 @@ import '../../viewmodels/social_viewmodel.dart';
 import '../../data/models/summit_model.dart';
 import '../../data/services/storage_service.dart';
 import 'activity_calendar_view.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'ranking_view.dart';
 
 
 class ProfileView extends StatefulWidget {
@@ -22,11 +25,109 @@ class _ProfileViewState extends State<ProfileView> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final authViewModel = context.read<AuthViewModel>();
       if (authViewModel.currentUser != null) {
-        context
-            .read<ProfileViewModel>()
-            .loadProfile(authViewModel.currentUser!.uid);
+        final uid = authViewModel.currentUser!.uid;
+        context.read<ProfileViewModel>().loadProfile(uid);
+        context.read<SocialViewModel>().loadFollowing(uid); // 👈 afegeix això
       }
     });
+  }
+
+  void _showDeleteAccountDialog(BuildContext context) {
+    final passwordController = TextEditingController();
+    bool isLoading = false;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('⚠️ Esborrar compte'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Aquesta acció és irreversible. S\'esborraran totes les teves dades, activitats i medalles.',
+                style: TextStyle(color: Colors.grey, fontSize: 13),
+              ),
+              const SizedBox(height: 16),
+              const Text('Introdueix la teva contrasenya per confirmar:',
+                  style: TextStyle(fontSize: 13)),
+              const SizedBox(height: 8),
+              TextField(
+                controller: passwordController,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'Contrasenya',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.lock_outlined),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: isLoading ? null : () => Navigator.pop(context),
+              child: const Text('Cancel·lar'),
+            ),
+            ElevatedButton(
+              onPressed: isLoading
+                  ? null
+                  : () async {
+                      if (passwordController.text.isEmpty) return;
+                      setDialogState(() => isLoading = true);
+
+                      final authViewModel = context.read<AuthViewModel>();
+
+                      // Re-autenticar primer
+                      final reauthed = await authViewModel
+                          .reauthenticate(passwordController.text);
+
+                      if (!reauthed) {
+                        setDialogState(() => isLoading = false);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Contrasenya incorrecta'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                        return;
+                      }
+
+                      // Esborrar compte
+                      final deleted = await authViewModel.deleteAccount();
+
+                      if (context.mounted) {
+                        Navigator.pop(context);
+                        if (!deleted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Error en esborrar el compte'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                        // Si deleted == true, AuthGate redirigeix sol a LoginView
+                      }
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              child: isLoading
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                          color: Colors.white, strokeWidth: 2),
+                    )
+                  : const Text('Esborrar compte'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -131,11 +232,18 @@ class _ProfileViewState extends State<ProfileView> {
             ),
             actions: [
               IconButton(
+                icon: const Icon(Icons.leaderboard, color: Colors.white),
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const RankingView()),
+                ),
+                tooltip: 'Rànquing',
+              ),
+              IconButton(
                 icon: const Icon(Icons.calendar_month, color: Colors.white),
                 onPressed: () => Navigator.push(
                   context,
-                  MaterialPageRoute(
-                      builder: (_) => const ActivityCalendarView()),
+                  MaterialPageRoute(builder: (_) => const ActivityCalendarView()),
                 ),
                 tooltip: 'Les meves activitats',
               ),
@@ -144,6 +252,7 @@ class _ProfileViewState extends State<ProfileView> {
                 onPressed: () => authViewModel.signOut(),
               ),
             ],
+            
           ),
 
           SliverToBoxAdapter(
@@ -164,12 +273,62 @@ class _ProfileViewState extends State<ProfileView> {
                   _buildStatsCard(profileViewModel),
                   const SizedBox(height: 16),
 
+                  // Repte 100 cims FEEC
+                  _buildChallengeCard(context, profileViewModel),
+                  const SizedBox(height: 16),
+
                   // Medalles
                   _buildBadgesCard(profileViewModel),
                   const SizedBox(height: 16),
+
+                  // Configuració del compte
+                  _buildAccountCard(context),
+                  const SizedBox(height: 32),
                 ],
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAccountCard(BuildContext context) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Column(
+        children: [
+          ListTile(
+            leading: const Icon(Icons.privacy_tip_outlined, color: Colors.grey),
+            title: const Text('Política de privacitat'),
+            trailing: const Icon(Icons.open_in_new, size: 16, color: Colors.grey),
+            onTap: () => launchUrl(Uri.parse(
+              'https://ferrangil97.github.io/cim-peaks-legal/privacy_policy.html',
+            )),
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.description_outlined, color: Colors.grey),
+            title: const Text('Termes i condicions'),
+            trailing: const Icon(Icons.open_in_new, size: 16, color: Colors.grey),
+            onTap: () => launchUrl(Uri.parse(
+              'https://ferrangil97.github.io/cim-peaks-legal/terms_conditions.html',
+            )),
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.delete_forever, color: Colors.red),
+            title: const Text(
+              'Esborrar compte',
+              style: TextStyle(color: Colors.red),
+            ),
+            subtitle: const Text(
+              'Esborra el teu compte i totes les dades',
+              style: TextStyle(fontSize: 12),
+            ),
+            trailing: const Icon(Icons.chevron_right, color: Colors.red),
+            onTap: () => _showDeleteAccountDialog(context),
           ),
         ],
       ),
@@ -277,6 +436,15 @@ class _ProfileViewState extends State<ProfileView> {
                       socialViewModel.isFollowing(userId);
 
                   return ListTile(
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => PublicProfileView(
+                          userId: userId,
+                          displayName: user['displayName'] ?? 'Usuari',
+                        ),
+                      ),
+                    ),
                     leading: CircleAvatar(
                       backgroundColor: Colors.green,
                       child: Text(
@@ -504,6 +672,310 @@ class _ProfileViewState extends State<ProfileView> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildChallengeCard(BuildContext context, ProfileViewModel vm) {
+    if (vm.challengeLoading) {
+      return const Card(
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: Center(child: CircularProgressIndicator(color: Colors.green)),
+        ),
+      );
+    }
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Títol i badge
+            Row(
+              children: [
+                const Text('🏔️', style: TextStyle(fontSize: 22)),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Repte Els 100 Cims FEEC',
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.blue[50],
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.blue[200]!),
+                  ),
+                  child: Text(
+                    '${vm.totalChallengeAchieved}/100',
+                    style: TextStyle(
+                      color: Colors.blue[700],
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // Barra de progrés
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: LinearProgressIndicator(
+                value: vm.challengeProgress,
+                minHeight: 10,
+                backgroundColor: Colors.grey[200],
+                valueColor:
+                    const AlwaysStoppedAnimation<Color>(Colors.blue),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '${(vm.challengeProgress * 100).toStringAsFixed(1)}% completat',
+              style: const TextStyle(color: Colors.grey, fontSize: 12),
+            ),
+            const SizedBox(height: 16),
+
+            // Botó veure cims
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => _showChallengeSummits(context, vm),
+                icon: const Icon(Icons.list, color: Colors.blue),
+                label: const Text('Veure cims del repte',
+                    style: TextStyle(color: Colors.blue)),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Colors.blue),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showChallengeSummits(BuildContext context, ProfileViewModel vm) {
+    final achieved = vm.achievedChallengeSummits.map((s) => s.id).toSet();
+
+    // Filtrar cims sense nom o sense altitud vàlida
+    final validSummits = vm.challengeSummits
+        .where((s) => s.name.isNotEmpty && s.altitude > 0)
+        .toList();
+
+    // Separar en assolits i pendents
+    final achievedSummits = validSummits
+        .where((s) => achieved.contains(s.id))
+        .toList()
+      ..sort((a, b) => b.altitude.compareTo(a.altitude));
+
+    final pendingSummits = validSummits
+        .where((s) => !achieved.contains(s.id))
+        .toList()
+      ..sort((a, b) => b.altitude.compareTo(a.altitude));
+
+    String searchQuery = '';
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => StatefulBuilder(
+        builder: (context, setModalState) {
+          // 🔍 FILTRE
+          final filteredAchieved = achievedSummits.where((s) {
+            return s.name.toLowerCase().contains(searchQuery.toLowerCase()) ||
+                (s.province ?? '')
+                    .toLowerCase()
+                    .contains(searchQuery.toLowerCase()) ||
+                (s.massif ?? '')
+                    .toLowerCase()
+                    .contains(searchQuery.toLowerCase());
+          }).toList();
+
+          final filteredPending = pendingSummits.where((s) {
+            return s.name.toLowerCase().contains(searchQuery.toLowerCase()) ||
+                (s.province ?? '')
+                    .toLowerCase()
+                    .contains(searchQuery.toLowerCase()) ||
+                (s.massif ?? '')
+                    .toLowerCase()
+                    .contains(searchQuery.toLowerCase());
+          }).toList();
+
+          return DraggableScrollableSheet(
+            initialChildSize: 0.75,
+            minChildSize: 0.5,
+            maxChildSize: 0.95,
+            expand: false,
+            builder: (context, scrollController) => Column(
+              children: [
+                // Capçalera
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  child: Row(
+                    children: [
+                      const Text('🏔️', style: TextStyle(fontSize: 24)),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'Els 100 Cims FEEC',
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 16),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.blue[50],
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.blue[200]!),
+                        ),
+                        child: Text(
+                          '${achievedSummits.length}/${validSummits.length}',
+                          style: TextStyle(
+                            color: Colors.blue[700],
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+
+                // 🔍 BUSCADOR
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: TextField(
+                    decoration: InputDecoration(
+                      hintText: 'Buscar cim...',
+                      prefixIcon: const Icon(Icons.search),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      contentPadding:
+                          const EdgeInsets.symmetric(vertical: 0),
+                    ),
+                    onChanged: (value) {
+                      setModalState(() {
+                        searchQuery = value;
+                      });
+                    },
+                  ),
+                ),
+
+                // Llista
+                Expanded(
+                  child: ListView(
+                    controller: scrollController,
+                    children: [
+                      // Assolits
+                      if (filteredAchieved.isNotEmpty) ...[
+                        _sectionHeader(
+                          '✅ Assolits (${filteredAchieved.length})',
+                          Colors.green,
+                        ),
+                        ...filteredAchieved.map((summit) =>
+                            _challengeSummitTile(summit, true)),
+                      ],
+
+                      // Pendents
+                      if (filteredPending.isNotEmpty) ...[
+                        _sectionHeader(
+                          '🔵 Pendents (${filteredPending.length})',
+                          Colors.blue,
+                        ),
+                        ...filteredPending.map((summit) =>
+                            _challengeSummitTile(summit, false)),
+                      ],
+
+                      // Cas sense resultats
+                      if (filteredAchieved.isEmpty &&
+                          filteredPending.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.all(24),
+                          child: Center(
+                            child: Text(
+                              'No s\'han trobat cims',
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _sectionHeader(String title, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      color: color.withOpacity(0.08),
+      child: Text(
+        title,
+        style: TextStyle(
+          fontWeight: FontWeight.bold,
+          fontSize: 13,
+          color: color,
+        ),
+      ),
+    );
+  }
+
+  Widget _challengeSummitTile(SummitModel summit, bool isAchieved) {
+    return ListTile(
+      leading: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: isAchieved ? Colors.green[50] : Colors.blue[50],
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: isAchieved ? Colors.green : Colors.blue[300]!,
+          ),
+        ),
+        child: Center(
+          child: Text(
+            isAchieved ? '✅' : '🔵',
+            style: const TextStyle(fontSize: 18),
+          ),
+        ),
+      ),
+      title: Text(
+        summit.name,
+        style: TextStyle(
+          fontWeight: isAchieved ? FontWeight.bold : FontWeight.w500,
+          color: isAchieved ? Colors.black : Colors.grey[700],
+        ),
+      ),
+      subtitle: Text(
+        '${summit.altitude}m${summit.province != null ? ' · ${summit.province}' : ''}${summit.massif != null ? ' · ${summit.massif}' : ''}',
+        style: const TextStyle(fontSize: 12),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      trailing: isAchieved
+          ? const Icon(Icons.check_circle, color: Colors.green, size: 22)
+          : null,
     );
   }
 

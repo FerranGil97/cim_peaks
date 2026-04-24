@@ -53,4 +53,61 @@ class AuthRepository {
   Future<void> signOut() async {
     await _auth.signOut();
   }
+
+  // Re-autenticar l'usuari (necessari abans d'esborrar)
+  Future<void> reauthenticate(String password) async {
+    final user = _auth.currentUser!;
+    final credential = EmailAuthProvider.credential(
+      email: user.email!,
+      password: password,
+    );
+    await user.reauthenticateWithCredential(credential);
+  }
+
+  // Esborrar compte i totes les dades de l'usuari
+  Future<void> deleteAccount(String userId) async {
+    final user = _auth.currentUser!;
+
+    // Esborrar subcoleccions de l'usuari a Firestore
+    final batch = _firestore.batch();
+
+    // Esborrar user_summits
+    final userSummits = await _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('user_summits')
+        .get();
+    for (final doc in userSummits.docs) {
+      batch.delete(doc.reference);
+    }
+
+    // Esborrar notificacions
+    final notifications = await _firestore
+        .collection('notifications')
+        .where('userId', isEqualTo: userId)
+        .get();
+    for (final doc in notifications.docs) {
+      batch.delete(doc.reference);
+    }
+
+    // Esborrar activitats
+    final activities = await _firestore
+        .collection('activities')
+        .where('userId', isEqualTo: userId)
+        .get();
+    for (final doc in activities.docs) {
+      batch.delete(doc.reference);
+    }
+
+    // Esborrar document de l'usuari
+    batch.delete(_firestore.collection('users').doc(userId));
+
+    await batch.commit();
+
+    // Esborrar el compte de Firebase Auth
+    await user.delete();
+  }
+  Future<void> sendPasswordResetEmail(String email) async {
+    await _auth.sendPasswordResetEmail(email: email);
+  }
 }

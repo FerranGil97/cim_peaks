@@ -51,6 +51,7 @@ async function seedSummits() {
         province: summit.province || null,
         massif: summit.massif || null,
         description: null,
+        showOnMap: false,
         createdAt: now,
       });
     }

@@ -2,12 +2,12 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../data/models/summit_model.dart';
+import '../../data/models/review_model.dart';
 import '../../data/repositories/summit_repository.dart';
 import '../../data/services/storage_service.dart';
 import '../../viewmodels/auth_viewmodel.dart';
 import '../../viewmodels/summit_viewmodel.dart';
-import '../feed/publish_activity_view.dart';
-import '../../data/models/activity_model.dart';
+import 'ascent_details_view.dart';
 
 class SummitDetailView extends StatefulWidget {
   final SummitModel summit;
@@ -235,7 +235,6 @@ class _SummitDetailViewState extends State<SummitDetailView> {
                             Text('⛰️ ${widget.summit.massif}',
                                 style:
                                     const TextStyle(color: Colors.grey)),
-                          // Data d'assoliment
                           if (widget.summit.status ==
                                   SummitStatus.achieved &&
                               widget.summit.achievedAt != null) ...[
@@ -263,6 +262,33 @@ class _SummitDetailViewState extends State<SummitDetailView> {
                   ),
                   const SizedBox(height: 16),
 
+                  // Botó editar detalls (si ja és assolit)
+                  if (widget.summit.status == SummitStatus.achieved)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: OutlinedButton.icon(
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => AscentDetailsView(
+                              summit: widget.summit,
+                            ),
+                          ),
+                        ),
+                        icon: const Icon(Icons.edit_note,
+                            color: Colors.green),
+                        label: const Text('Editar detalls de l\'ascensió',
+                            style: TextStyle(color: Colors.green)),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Colors.green),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8)),
+                          padding:
+                              const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                      ),
+                    ),
+
                   // Canviar estat
                   Card(
                     shape: RoundedRectangleBorder(
@@ -285,82 +311,26 @@ class _SummitDetailViewState extends State<SummitDetailView> {
                                   color: Colors.green,
                                   icon: Icons.check_circle,
                                   onTap: () async {
-                                    summitViewModel.updateSummitStatus(
+                                    await summitViewModel.updateSummitStatus(
                                       authViewModel.currentUser!.uid,
                                       widget.summit.id,
                                       SummitStatus.achieved,
                                     );
 
-                                    final publish =
-                                        await showDialog<bool>(
-                                      context: context,
-                                      builder: (_) => AlertDialog(
-                                        title: const Text(
-                                            '🎉 Cim assolit!'),
-                                        content: const Text(
-                                            'Vols publicar aquesta ascensió al feed perquè els altres usuaris la puguin veure?'),
-                                        actions: [
-                                          TextButton(
-                                            onPressed: () =>
-                                                Navigator.pop(
-                                                    context, false),
-                                            child: const Text(
-                                                'No, gràcies'),
-                                          ),
-                                          ElevatedButton(
-                                            onPressed: () =>
-                                                Navigator.pop(
-                                                    context, true),
-                                            style: ElevatedButton
-                                                .styleFrom(
-                                                    backgroundColor:
-                                                        Colors.green,
-                                                    foregroundColor:
-                                                        Colors.white),
-                                            child: const Text(
-                                                'Publicar!'),
-                                          ),
-                                        ],
-                                      ),
-                                    );
-
                                     if (!context.mounted) return;
 
-                                    if (publish == true) {
-                                      final sport =
-                                          await showModalBottomSheet
-                                              <SportType>(
-                                        context: context,
-                                        shape:
-                                            const RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.vertical(
-                                                  top:
-                                                      Radius.circular(
-                                                          20)),
-                                        ),
-                                        builder: (_) =>
-                                            const _SportPickerSheet(),
-                                      );
-
-                                      if (sport != null &&
-                                          context.mounted) {
-                                        await Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (_) =>
-                                                PublishActivityView(
-                                              summit: widget.summit,
-                                              sport: sport,
-                                            ),
+                                    Navigator.pop(context);
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => AscentDetailsView(
+                                          summit: widget.summit.copyWith(
+                                            status: SummitStatus.achieved,
+                                            achievedAt: DateTime.now(),
                                           ),
-                                        );
-                                      }
-                                    }
-
-                                    if (context.mounted) {
-                                      Navigator.pop(context);
-                                    }
+                                        ),
+                                      ),
+                                    );
                                   },
                                 ),
                               ),
@@ -404,7 +374,16 @@ class _SummitDetailViewState extends State<SummitDetailView> {
                   ),
                   const SizedBox(height: 16),
 
-                  // Fotos
+                  // Valoracions públiques del cim
+                  ReviewsSection(
+                    summit: widget.summit,
+                    userId: authViewModel.currentUser!.uid,
+                    userName: authViewModel.currentUser!.displayName,
+                    readOnly: widget.summit.status != SummitStatus.achieved,
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Fotos privades
                   Card(
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12)),
@@ -474,8 +453,7 @@ class _SummitDetailViewState extends State<SummitDetailView> {
                                       fit: BoxFit.cover,
                                       loadingBuilder:
                                           (context, child, progress) {
-                                        if (progress == null)
-                                          return child;
+                                        if (progress == null) return child;
                                         return Container(
                                           color: Colors.grey[200],
                                           child: const Center(
@@ -551,58 +529,309 @@ class _SummitDetailViewState extends State<SummitDetailView> {
   }
 }
 
-class _SportPickerSheet extends StatelessWidget {
-  const _SportPickerSheet();
+// ── REVIEWS ──────────────────────────────────────────────────────────────
+
+class ReviewsSection extends StatefulWidget {
+  final SummitModel summit;
+  final String userId;
+  final String userName;
+  final bool readOnly;
+
+  const ReviewsSection({
+    required this.summit,
+    required this.userId,
+    required this.userName,
+    this.readOnly = false,
+  });
+
+  @override
+  State<ReviewsSection> createState() => _ReviewsSectionState();
+}
+
+class _ReviewsSectionState extends State<ReviewsSection> {
+  final SummitRepository _repository = SummitRepository();
+  List<ReviewModel> _reviews = [];
+  ReviewModel? _myReview;
+  bool _isLoading = true;
+  double _myRating = 0;
+  final _commentController = TextEditingController();
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadReviews();
+  }
+
+  @override
+  void dispose() {
+    _commentController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadReviews() async {
+    setState(() => _isLoading = true);
+    final reviews = await _repository.getSummitReviews(widget.summit.id);
+    final myReview =
+        await _repository.getUserReview(widget.summit.id, widget.userId);
+    setState(() {
+      _reviews = reviews;
+      _myReview = myReview;
+      if (myReview != null) {
+        _myRating = myReview.rating;
+        _commentController.text = myReview.comment ?? '';
+      }
+      _isLoading = false;
+    });
+  }
+
+  Future<void> _saveReview() async {
+    if (_myRating == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Selecciona una puntuació primer'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isSaving = true);
+
+    final review = ReviewModel(
+      userId: widget.userId,
+      userName: widget.userName,
+      rating: _myRating,
+      comment: _commentController.text.trim().isEmpty
+          ? null
+          : _commentController.text.trim(),
+      createdAt: DateTime.now(),
+    );
+
+    await _repository.saveReview(widget.summit.id, review);
+    await _loadReviews();
+    setState(() => _isSaving = false);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('✅ Valoració guardada!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Text(
-            'Com has fet el cim?',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 24),
-          GridView.count(
-            shrinkWrap: true,
-            crossAxisCount: 3,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: 1.2,
-            children: SportType.values.map((sport) {
-              return GestureDetector(
-                onTap: () => Navigator.pop(context, sport),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.green[50],
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.green[200]!),
+    return Card(
+      shape:
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Capçalera amb mitjana global
+            Row(
+              children: [
+                const Text('Valoracions',
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 16)),
+                const Spacer(),
+                if (widget.summit.avgRating != null) ...[
+                  const Icon(Icons.star, color: Colors.amber, size: 18),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${widget.summit.avgRating!.toStringAsFixed(1)} (${widget.summit.reviewsCount})',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                ] else
+                  const Text('Sense valoracions',
+                      style:
+                          TextStyle(color: Colors.grey, fontSize: 13)),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // La meva valoració (només si el cim és assolit)
+            if (!widget.readOnly) ...[
+const Text('La meva valoració',
+                style: TextStyle(
+                    fontWeight: FontWeight.w600, color: Colors.grey)),
+            const SizedBox(height: 8),
+
+            // Estrelles interactives
+            Row(
+              children: List.generate(5, (index) {
+                return GestureDetector(
+                  onTap: () =>
+                      setState(() => _myRating = (index + 1).toDouble()),
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 4),
+                    child: Icon(
+                      index < _myRating
+                          ? Icons.star
+                          : Icons.star_border,
+                      color: Colors.amber,
+                      size: 36,
+                    ),
+                  ),
+                );
+              }),
+            ),
+            const SizedBox(height: 12),
+
+            // Comentari públic
+            TextField(
+              controller: _commentController,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                hintText: 'Explica la teva experiència... (opcional)',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Botó guardar valoració
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _isSaving ? null : _saveReview,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                ),
+                child: _isSaving
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                            color: Colors.white, strokeWidth: 2))
+                    : Text(_myReview != null
+                        ? 'Actualitzar valoració'
+                        : 'Publicar valoració'),
+              ),
+            ),
+
+            ],
+
+            if (widget.readOnly)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue[50],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.blue[200]!),
+                  ),
+                  child: const Row(
                     children: [
-                      Text(sport.emoji,
-                          style: const TextStyle(fontSize: 28)),
-                      const SizedBox(height: 4),
-                      Text(
-                        sport.label,
-                        style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold),
-                        textAlign: TextAlign.center,
+                      Icon(Icons.info_outline, color: Colors.blue, size: 16),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Marca el cim com a assolit per deixar la teva valoració',
+                          style: TextStyle(color: Colors.blue, fontSize: 12),
+                        ),
                       ),
                     ],
                   ),
                 ),
-              );
-            }).toList(),
+              ),
+
+            // Valoracions d'altres usuaris
+            if (_isLoading)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(16),
+                  child:
+                      CircularProgressIndicator(color: Colors.green),
+                ),
+              )
+            else if (_reviews
+                .where((r) => r.userId != widget.userId)
+                .isNotEmpty) ...[
+              const SizedBox(height: 16),
+              const Divider(),
+              const SizedBox(height: 8),
+              const Text('Altres valoracions',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w600, color: Colors.grey)),
+              const SizedBox(height: 8),
+              ..._reviews
+                  .where((r) => r.userId != widget.userId)
+                  .map((review) => _ReviewTile(review: review)),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ReviewTile extends StatelessWidget {
+  final ReviewModel review;
+
+  const _ReviewTile({required this.review});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CircleAvatar(
+            radius: 18,
+            backgroundColor: Colors.green,
+            backgroundImage: review.userPhotoUrl != null
+                ? NetworkImage(review.userPhotoUrl!)
+                : null,
+            child: review.userPhotoUrl == null
+                ? Text(
+                    review.userName[0].toUpperCase(),
+                    style: const TextStyle(
+                        color: Colors.white, fontSize: 14),
+                  )
+                : null,
           ),
-          const SizedBox(height: 16),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      review.userName,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 13),
+                    ),
+                    const Spacer(),
+                    ...List.generate(
+                      5,
+                      (i) => Icon(
+                        i < review.rating
+                            ? Icons.star
+                            : Icons.star_border,
+                        color: Colors.amber,
+                        size: 14,
+                      ),
+                    ),
+                  ],
+                ),
+                if (review.comment != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    review.comment!,
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                ],
+              ],
+            ),
+          ),
         ],
       ),
     );

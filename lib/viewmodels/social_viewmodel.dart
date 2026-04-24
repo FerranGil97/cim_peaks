@@ -50,4 +50,9 @@ class SocialViewModel extends ChangeNotifier {
     _isLoading = false;
     notifyListeners();
   }
+  Future<List<String>> loadFollowingIds(String userId) async {
+    _followingIds = await _repository.getFollowingIds(userId);
+    notifyListeners();
+    return _followingIds;
+  }
 }

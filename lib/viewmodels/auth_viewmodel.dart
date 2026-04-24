@@ -104,4 +104,40 @@ class AuthViewModel extends ChangeNotifier {
     if (error.contains('network-request-failed')) return 'Error de connexió';
     return 'Ha ocorregut un error. Torna-ho a intentar';
   }
+
+  Future<bool> reauthenticate(String password) async {
+    try {
+      await _authRepository.reauthenticate(password);
+      return true;
+    } catch (e) {
+      _errorMessage = 'Contrasenya incorrecta';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> deleteAccount() async {
+    try {
+      await _authRepository.deleteAccount(_currentUser!.uid);
+      _currentUser = null;
+      _status = AuthStatus.unauthenticated;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _errorMessage = 'Error en esborrar el compte';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> sendPasswordResetEmail(String email) async {
+    try {
+      await _authRepository.sendPasswordResetEmail(email);
+      return true;
+    } catch (e) {
+      _errorMessage = 'No s\'ha trobat cap compte amb aquest email';
+      notifyListeners();
+      return false;
+    }
+  }
 }

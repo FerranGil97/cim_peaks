@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../viewmodels/auth_viewmodel.dart';
 
 class RegisterView extends StatefulWidget {
@@ -170,6 +172,43 @@ class _RegisterViewState extends State<RegisterView> {
                   child: isLoading
                       ? const CircularProgressIndicator(color: Colors.white)
                       : const Text('Crear compte', style: TextStyle(fontSize: 16)),
+                ),
+                const SizedBox(height: 16),
+                // Política de privacitat i termes
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: RichText(
+                    textAlign: TextAlign.center,
+                    text: TextSpan(
+                      style: const TextStyle(color: Colors.grey, fontSize: 12),
+                      children: [
+                        const TextSpan(
+                            text: 'En crear un compte, acceptes els nostres '),
+                        TextSpan(
+                          text: 'Termes i Condicions',
+                          style: const TextStyle(
+                            color: Colors.green,
+                            decoration: TextDecoration.underline,
+                          ),
+                          recognizer: TapGestureRecognizer()
+                            ..onTap = () => launchUrl(Uri.parse(
+                                'https://ferrangil97.github.io/cim-peaks-legal/terms_conditions.html')),
+                        ),
+                        const TextSpan(text: ' i la nostra '),
+                        TextSpan(
+                          text: 'Política de Privacitat',
+                          style: const TextStyle(
+                            color: Colors.green,
+                            decoration: TextDecoration.underline,
+                          ),
+                          recognizer: TapGestureRecognizer()
+                            ..onTap = () => launchUrl(Uri.parse(
+                                'https://ferrangil97.github.io/cim-peaks-legal/privacy_policy.html')),
+                        ),
+                        const TextSpan(text: '.'),
+                      ],
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 16),
                 // Enllaç login
