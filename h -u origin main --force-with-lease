@@ -1,0 +1,8 @@
+[33m53a63f3[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m Delete lib/firebase_options.dart
+[33ma442d3b[m Initial commit projecte cim_peaks
+[33mee97d45[m feat: calendari d'activitats, cims a prop, serveis B2B, splash screen
+[33m2e5c339[m feat: proposta de cim nou amb mapa i aprovació admin
+[33md1e78ac[m feat: pantalla de detall del cim amb fotos
+[33mdedb9f1[m feat: perfil amb estadístiques, medalles i notificacions
+[33m6df5166[m feat: mapa interactiu amb cims de Firestore i filtres
+[33m06bea43[m feat: configuració inicial Flutter + Firebase Auth
